@@ -1,25 +1,26 @@
+# Connect to Exchange Online
 Set-ExecutionPolicy unrestricted -Force
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Install-Module -Name ExchangeOnlineManagement
 Connect-ExchangeOnline
 
-function WriteConsole($params) {
+# Escribe en la consola, recibe 3 parámetros (Texto, ForegroundColor, numero de saltos de linea, segundos de espera)
+function WriteConsole {
+  [CmdletBinding()]
+  param (
+    [Parameter(Mandatory = $true)]
+    [string]$Text,
+    [ValidateSet("Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta", "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White")]
+    [string]$ForegroundColor = "White",
+    [int]$NewLine = 0,
+    [int]$Wait = 0
+  )
 
-  $Text = $params[0]
-  $ForegroundColor = $params[1]
-  $NewLine = $params[2]
-  $Wait = $params[3]
+  Write-Host $Text -ForegroundColor $ForegroundColor
 
-  if ($Text -and $ForegroundColor -and $NewLine) {
-    Write-Host $Text -ForegroundColor $ForegroundColor
-    for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" }
-  }
+  if ($NewLine -gt 0) { for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" } }
 
-  elseif ($Text -and $ForegroundColor) { Write-Host $Text -ForegroundColor $ForegroundColor }
-
-  elseif ($Text) { Write-Host $Text }
-
-  if ($Wait) { Start-Sleep -Seconds $Wait }
+  if ($Wait -gt 0) { Start-Sleep -Seconds $Wait }
 }
 
 function IsUserExist($User) {
@@ -29,111 +30,111 @@ function IsUserExist($User) {
 
 function ShowMenu() {
   Clear-Host
-  WriteConsole("--------------------[ SMTP Managment ]--------------------", "green", 1, 0)
-  WriteConsole @("1- Habilitar la autenticación SMTP en la organización", "white")
-  WriteConsole @("2- Deshabilitar la autenticación SMTP en la organización", "white")
-  WriteConsole @("3- Mostrar el estado de la autenticación SMTP en la organización", "white")
-  WriteConsole @("4- Configurar SMTP por defecto para todos los usuarios", "white")
-  WriteConsole @("5- Habilitar SMTP para todos los usuarios", "white")
-  WriteConsole @("6- Deshabilitar SMTP para todos los usuarios", "white")
-  WriteConsole @("7- Habilitar la autenticación SMTP para buzones específicos", "white")
-  WriteConsole @("8- Deshabilitar la autenticación SMTP para buzones específicos", "white")
-  WriteConsole @("9- Mostrar el estado de la autenticación SMTP para un usuario específico", "white")
-  WriteConsole @("10- Enviar correo", "white")
-  WriteConsole @("0- Salir", "white", 1)
-  $Option = Read-Host "Seleccione una opción"
-  return $Option
+  WriteConsole -Text "--------------------[ SMTP Managment ]--------------------" -ForegroundColor "Yellow" -NewLine 1
+  WriteConsole -Text "1- Enable SMTP authentication in the organization."
+  WriteConsole -Text "2- Disable SMTP authentication in the organization."
+  WriteConsole -Text "3- Show SMTP authentication status in the organization."
+  WriteConsole -Text "4- Set default SMTP for all users."
+  WriteConsole -Text "5- Enable SMTP for all users."
+  WriteConsole -Text "6- Disable SMTP for all users."
+  WriteConsole -Text "7- Enable SMTP authentication for specific user."
+  WriteConsole -Text "8- Disable SMTP authentication for specific user."
+  WriteConsole -Text "9- Show SMTP authentication status for a specific user."
+  WriteConsole -Text "10- Send email."
+  WriteConsole -Text "0- Exit."
+  WriteConsole -Text "------------------------------------------------------------" -ForegroundColor "Yellow"
+  return Read-Host "Select an option"
 }
 
-function EnableSMTP() {
-  Set-TransportConfig -SmtpClientAuthenticationDisabled $false
-  WriteConsole @("La autenticación SMTP ha sido habilitada en la organización", "green", 2, 0)
+# Set SMTP authentication for the organization
+function Set-SMTPAuthentication {
+  param (
+    [bool]$Value
+  )
+
+  if ($Value) {
+    Set-TransportConfig -SmtpClientAuthenticationDisabled $true
+    WriteConsole -Text "`nSMTP authentication has been disabled in the organization." -ForegroundColor "green" -NewLine 2
+  }
+  else {
+    Set-TransportConfig -SmtpClientAuthenticationDisabled $false
+    WriteConsole -Text "`nSMTP authentication has been enabled in the organization." -ForegroundColor "green" -NewLine 2
+  }
   Pause
 }
-
-function DisableSMTP() {
-  Set-TransportConfig -SmtpClientAuthenticationDisabled $true
-  WriteConsole @("La autenticación SMTP ha sido deshabilitada en la organización", "green", 2, 0)
-  Pause
-}
-
+# Verify if SMTP authentication is enabled
 function IsSMTPEnabled() { return !(Get-TransportConfig).SmtpClientAuthenticationDisabled }
 
-function setSMTP($params) {
-  $user = $params[0]
-  $value = $params[1]
+# Set SMTP authentication for a specific user
+function Set-SMTPForUser {
+  [CmdletBinding()]
+  param (
+    [Parameter(Mandatory = $true)]
+    [string]$User,
+    [Parameter(Mandatory = $false)]
+    [bool]$value = $null
+  )
   Set-CASMailbox -Identity $user -SmtpClientAuthenticationDisabled $value
 }
 
-function EnableSMTPForAllMailboxes() {
+# Set SMTP authentication for all users
+function Set-SMTPForAllMailboxes {
+  param (
+    [Parameter(Mandatory = $true)]
+    [bool]$value
+  )
   $Mailboxes = Get-Mailbox
-  foreach ($Mailbox in $Mailboxes) {
-    setSMTP @($Mailbox.PrimarySmtpAddress, $false)
-  }
-  WriteConsole @("La autenticación SMTP ha sido habilitada para todos los usuarios", "green", 2, 0)
+  foreach ($Mailbox in $Mailboxes) { Set-SMTPForUser -User $Mailbox -value $value }
+  if ($value) { WriteConsole -Text "`nSMTP authentication has been disabled for all users." -ForegroundColor "green" -NewLine 2 }
+  else { WriteConsole -Text "`nSMTP authentication has been enabled for all users." -ForegroundColor "green" -NewLine 2 }
   Pause
 }
 
-function DisableSMTPForAllMailboxes() {
+# Inherits the organization configuration
+function Set-DefaultSMTP() {
   $Mailboxes = Get-Mailbox
-  foreach ($Mailbox in $Mailboxes) {
-    setSMTP @($Mailbox.PrimarySmtpAddress, $true)
-  }
-  WriteConsole @("La autenticación SMTP ha sido deshabilitada para todos los usuarios", "green", 2, 0)
+  foreach ($Mailbox in $Mailboxes) { Set-SMTPForUser -User $Mailbox.PrimarySmtpAddress }
+  WriteConsole -Text "`nSMTP authentication has been set by default for all users." -ForegroundColor "green" -NewLine 2
   Pause
 }
 
-function SetDefaultSMTP() {
-  $Mailboxes = Get-Mailbox
-  foreach ($Mailbox in $Mailboxes) {
-    setSMTP @($Mailbox.PrimarySmtpAddress, $null)
-  }
-  WriteConsole @("La autenticación SMTP ha sido configurada por defecto para todos los usuarios", "green", 2, 0)
-  Pause
-}
-
-function EnableSMTPForSpecificMailboxes() {
-  $User = Read-Host "Escriba el correo del usuario"
+# Set SMTP authentication for a specific user
+function Set-SMTPForSpecificMailboxes {
+  param(
+    [Parameter(Mandatory = $true)]
+    [bool]$Value
+  )
+  $User = Read-Host "`nEnter the user email"
   if (IsUserExist($User)) {
-    setSMTP($User, $false)
-    WriteConsole @("La autenticación SMTP ha sido habilitada para el usuario $User", "green", 2, 0)
+    Set-SMTPForUser -User $User -value $Value
+    if ($Value) { WriteConsole -Text "`nSMTP authentication has been disabled for the user $User" -ForegroundColor "green" -NewLine 2 }
+    else { WriteConsole -Text "`nSMTP authentication has been enabled for the user $User" -ForegroundColor "green" -NewLine 2 }
   }
-  else { WriteConsole @("El usuario $User no existe", "red", 2, 0) }
+  else { WriteConsole -Text "`nThe user $User does not exist." -ForegroundColor "red" -NewLine 2 }
   Pause
 }
 
-function DisableSMTPForSpecificMailboxes() {
-  $User = Read-Host "Escriba el correo del usuario"
-  if (IsUserExist($User)) {
-    setSMTP($User, $true)
-    WriteConsole @("La autenticación SMTP ha sido deshabilitada para el usuario $User", "green", 2, 0)
-  }
-  else { WriteConsole @("El usuario $User no existe", "red", 2, 0) }
+function Show-SMTPStatus() {
+  if ($IsSMTPEnabled) { WriteConsole -Text "`nSMTP authentication is enabled in the organization." -ForegroundColor "green" -NewLine 2 }
+  else { WriteConsole -Text "`nSMTP authentication is disabled in the organization." -ForegroundColor "red" -NewLine 2 }
   Pause
 }
 
-function ShowSMTPStatus() {
-  $SMTPStatus = IsSMTPEnabled
-  if ($SMTPStatus) { WriteConsole @("La autenticación SMTP está habilitada en la organización", "green", 2, 0) }
-  else { WriteConsole @("La autenticación SMTP está deshabilitada en la organización", "red", 2, 0) }
-  Pause
-}
-
-function ShowSMTPStatusForSpecificMailboxes() {
-  $User = Read-Host "Escriba el correo del usuario"
+function Show-SMTPStatusForSpecificMailboxes() {
+  $User = Read-Host "`nEnter the user email"
   if (IsUserExist($User)) {
     $SMTPStatus = (Get-CASMailbox -Identity $User).SmtpClientAuthenticationDisabled
-    if ($SMTPStatus) { WriteConsole @("La autenticación SMTP está deshabilitada para el usuario $User", "red", 2, 0) }
-    else { WriteConsole @("La autenticación SMTP está habilitada para el usuario $User", "green", 2, 0) }
+    if ($SMTPStatus) { WriteConsole -Text "`nSMTP authentication is disabled for the user $User" -ForegroundColor "red" -NewLine 2 }
+    else { WriteConsole -Text "`nSMTP authentication is enabled for the user $User" -ForegroundColor "green" -NewLine 2 }
   }
-  else { WriteConsole @("El usuario $User no existe", "red", 2, 0) }
+  else { WriteConsole -Text "`nThe user $User does not exist." -ForegroundColor "red" -NewLine 2 }
   Pause
 }
 
 function SendMail() {
   $credentials = Get-Credential
   $from = $credentials.UserName
-  $to = Read-Host "Escriba el correo del destinatario"
+  $to = Read-Host "`nEscriba el correo del destinatario"
   $subject = Read-Host "Escriba el asunto del correo"
   $body = Read-Host "Escriba el cuerpo del correo"
   Send-MailMessage -From $from -To $to -Subject $subject -Body $body -Credential $credentials -UseSsl -SmtpServer smtp.office365.com -Port 587
@@ -143,17 +144,17 @@ function SendMail() {
 do {
   $Option = ShowMenu
   switch ($Option) {
-    1 { EnableSMTP }
-    2 { DisableSMTP }
-    3 { ShowSMTPStatus }
-    4 { SetDefaultSMTP }
-    5 { EnableSMTPForAllMailboxes }
-    6 { DisableSMTPForAllMailboxes }
-    7 { EnableSMTPForSpecificMailboxes }
-    8 { DisableSMTPForSpecificMailboxes }
-    9 { ShowSMTPStatusForSpecificMailboxes }
+    1 { Set-SMTPAuthentication -Value $false }
+    2 { Set-SMTPAuthentication -Value $true }
+    3 { Show-SMTPStatus }
+    4 { Set-DefaultSMTP }
+    5 { Set-SMTPForAllMailboxes -Value $false }
+    6 { Set-SMTPForAllMailboxes -Value $true }
+    7 { Set-SMTPForSpecificMailboxes -Value $false }
+    8 { Set-SMTPForSpecificMailboxes -Value $true }
+    9 { Show-SMTPStatusForSpecificMailboxes }
     10 { SendMail }
-    0 { break }
-    default { WriteConsole @("Opcion no valida", "red", 2, 0) }
+    0 { WriteConsole -Text "`nExiting..." -ForegroundColor "Yellow" -NewLine 2 -Wait 2 }
+    default { WriteConsole -Text "`nInvalid option." -ForegroundColor "red" -NewLine 2 -Wait 3 }
   }
 } while ($Option -ne 0)

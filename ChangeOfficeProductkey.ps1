@@ -1,41 +1,42 @@
 # Escribe en la consola, recibe 3 parámetros (Texto, ForegroundColor, numero de saltos de linea, segundos de espera)
-function WriteConsole($params) {
+function WriteConsole {
+  [CmdletBinding()]
+  param (
+    [Parameter(Mandatory = $true)]
+    [string]$Text,
+    [ValidateSet("Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta", "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White")]
+    [string]$ForegroundColor = "White",
+    [int]$NewLine = 0,
+    [int]$Wait = 0
+  )
 
-  $Text = $params[0]
-  $ForegroundColor = $params[1]
-  $NewLine = $params[2]
-  $Wait = $params[3]
+  Write-Host $Text -ForegroundColor $ForegroundColor
 
-  if ($Text -and $ForegroundColor -and $NewLine) {
-    Write-Host $Text -ForegroundColor $ForegroundColor
-    for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" }
-  }
+  if ($NewLine -gt 0) { for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" } }
 
-  elseif ($Text -and $ForegroundColor) { Write-Host $Text -ForegroundColor $ForegroundColor }
-
-  elseif ($Text) { Write-Host $Text }
-
-  if ($Wait) { Start-Sleep -Seconds $Wait }
+  if ($Wait -gt 0) { Start-Sleep -Seconds $Wait }
 }
 
 function ShowMenu {
   while ($true) {
     Clear-Host
-    WriteConsole("--------------------[ Change Office Product Key ]--------------------", "green", 2)
-    WriteConsole("1- Office 2019 or 2016: 32-bit Office and 32-bit Windows", "white")
-    WriteConsole("2- Office 2019 or 2016: 32-bit Office and 64-bit Windows", "white")
-    WriteConsole("3- Office 2019 or 2016: 64-bit Office and 64-bit Windows", "white")
-    WriteConsole("4- Exit", "white", 2)
+    WriteConsole -Text "--------------------[ Change Office Product Key ]--------------------" -ForegroundColor "Yellow" -NewLine 1
+    WriteConsole -Text "1- Office 2019 or 2016: 32-bit Office and 32-bit Windows."
+    WriteConsole -Text "2- Office 2019 or 2016: 32-bit Office and 64-bit Windows."
+    WriteConsole -Text "3- Office 2019 or 2016: 64-bit Office and 64-bit Windows."
+    WriteConsole -Text "4- Exit"
+    WriteConsole -Text "---------------------------------------------------------------------" -ForegroundColor "Yellow"
     return Read-Host "Enter your choice"
   }
 }
 
 function ShowSubMenu {
   while ($true) {
-    WriteConsole("1- Show Office Product Key", "white")
-    WriteConsole("2- Remove Office Product Key", "white")
-    WriteConsole("3- Change Office Product Key", "white")
-    WriteConsole("4- Exit", "white", 2)
+    WriteConsole -Text "1- Show Office Product Key."
+    WriteConsole -Text "2- Remove Office Product Key."
+    WriteConsole -Text "3- Change Office Product Key."
+    WriteConsole -Text "4- Exit"
+    WriteConsole -Text "-------------------------------------------------------------------------------------------------" -ForegroundColor "Yellow"
     return Read-Host "Enter your choice"
   }
 }
@@ -56,7 +57,7 @@ function GetOfficeProductKey {
 function Option1 {
   do {
     clear-host
-    WriteConsole("--------------------[ Office 2019 or 2016: 32-bit Office and 32-bit Windows ]--------------------", "green", 2)
+    WriteConsole -Text "--------------------[ Office 2019 or 2016: 32-bit Office and 32-bit Windows ]--------------------" -ForegroundColor "Yellow" -NewLine 1
     $option = ShowSubMenu
 
     switch ($option) {
@@ -77,12 +78,9 @@ function Option1 {
         Pause
       }
 
-      "4" { WriteConsole("Exit", "white", 2) }
+      "4" { WriteConsole -Text "`nExiting..." -ForegroundColor "Yellow" -NewLine 2 -Wait 1 }
 
-      Default {
-        WriteConsole("Invalid option", "red", 2)
-        Pause
-      }
+      Default { WriteConsole -Text "`nInvalid option" -ForegroundColor "Red" -NewLine 2 -Wait 3 }
     }
   } while ($option -ne "4")
 }
@@ -99,7 +97,7 @@ function Option1 {
 function Option2 {
   do {
     clear-host
-    WriteConsole("--------------------[ Office 2019 or 2016: 32-bit Office and 64-bit Windows ]--------------------", "green", 2)
+    WriteConsole -Text "--------------------[ Office 2019 or 2016: 32-bit Office and 64-bit Windows ]--------------------" -ForegroundColor "Yellow" -NewLine 1
     $option = ShowSubMenu
 
     switch ($option) {
@@ -120,12 +118,9 @@ function Option2 {
         Pause
       }
 
-      "4" { WriteConsole("Exit", "white", 2) }
+      "4" { WriteConsole -Text "`nExiting..." -ForegroundColor "Yellow" -NewLine 2 -Wait 1 }
 
-      Default {
-        WriteConsole("Invalid option", "red", 2)
-        Pause
-      }
+      Default { WriteConsole -Text "`nInvalid option" -ForegroundColor "Red" -NewLine 2 -Wait 3 }
     }
   } while ($option -ne "4")
 }
@@ -142,7 +137,7 @@ function Option2 {
 function Option3 {
   do {
     clear-host
-    WriteConsole("--------------------[ Office 2019 or 2016: 64-bit Office and 64-bit Windows ]--------------------", "green", 2)
+    WriteConsole -Text "--------------------[ Office 2019 or 2016: 64-bit Office and 64-bit Windows ]--------------------" -ForegroundColor "Yellow" -NewLine 1
     $option = ShowSubMenu
 
     switch ($option) {
@@ -163,12 +158,9 @@ function Option3 {
         Pause
       }
 
-      "4" { WriteConsole("Exit", "white", 2) }
+      "4" { WriteConsole -Text "`nExiting..." -ForegroundColor "Yellow" -NewLine 2 -Wait 1 }
 
-      Default {
-        WriteConsole("Invalid option", "red", 2)
-        Pause
-      }
+      Default { WriteConsole -Text "`nInvalid option" -ForegroundColor "Red" -NewLine 2 -Wait 3 }
     }
   } while ($option -ne "4")
 }
@@ -180,10 +172,7 @@ do {
     "1" { Option1 }
     "2" { Option2 }
     "3" { Option3 }
-    "4" { WriteConsole("Bye", "white", 2) }
-    Default {
-      WriteConsole("Invalid option", "red", 2)
-      Pause
-    }
+    "4" { WriteConsole -Text "`nExiting..." -ForegroundColor "Yellow" -NewLine 2 -Wait 2 }
+    Default { WriteConsole -Text "`nInvalid option" -ForegroundColor "Red" -NewLine 2 -Wait 3 }
   }
 } while ($option -ne "4")

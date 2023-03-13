@@ -1,3 +1,4 @@
+# Connect to MsolService
 Set-ExecutionPolicy unrestricted -Force
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Install-Module -Name MSOnline
@@ -130,7 +131,6 @@ function Get-MfaStatusForAllUsers {
 # Show menu of options
 do {
   Clear-Host
-  # muestra el titulo del script
   WriteConsole -Text "--------------------[ MFA Management ]--------------------" -ForegroundColor "yellow" -NewLine 1
   WriteConsole -Text "1- Enable MFA for all users."
   WriteConsole -Text "2- Disable MFA for all users."
@@ -153,10 +153,7 @@ do {
     6 { Set-MfaStateForUserPrompt -State "Disabled" }
     7 { Set-MfaStateForUserPrompt -State "Enforced" }
     8 { Get-MfaStatusForUser }
-    9 {
-      WriteConsole -Text "`nExiting..." -ForegroundColor "yellow" -NewLine 1 -Wait 2
-      break
-    }
+    9 { WriteConsole -Text "`nExiting..." -ForegroundColor "yellow" -NewLine 1 -Wait 2 }
     default { WriteConsole -Text "`nInvalid option." -ForegroundColor "red" -NewLine 1 -Wait 3 }
   }
 } while ($option -ne 9)
