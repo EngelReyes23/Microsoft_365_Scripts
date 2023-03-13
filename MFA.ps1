@@ -4,23 +4,22 @@ Install-Module -Name MSOnline
 Connect-MsolService
 
 # Escribe en la consola, recibe 3 parámetros (Texto, ForegroundColor, numero de saltos de linea, segundos de espera)
-function WriteConsole($params) {
+function WriteConsole {
+  [CmdletBinding()]
+  param (
+    [Parameter(Mandatory = $true)]
+    [string]$Text,
+    [ValidateSet("Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta", "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White")]
+    [string]$ForegroundColor = "White",
+    [int]$NewLine = 0,
+    [int]$Wait = 0
+  )
 
-  $Text = $params[0]
-  $ForegroundColor = $params[1]
-  $NewLine = $params[2]
-  $Wait = $params[3]
+  Write-Host $Text -ForegroundColor $ForegroundColor
 
-  if ($Text -and $ForegroundColor -and $NewLine) {
-    Write-Host $Text -ForegroundColor $ForegroundColor
-    for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" }
-  }
+  if ($NewLine -gt 0) { for ($i = 0; $i -lt $NewLine; $i++) { Write-Host "" } }
 
-  elseif ($Text -and $ForegroundColor) { Write-Host $Text -ForegroundColor $ForegroundColor }
-
-  elseif ($Text) { Write-Host $Text }
-
-  if ($Wait) { Start-Sleep -Seconds $Wait }
+  if ($Wait -gt 0) { Start-Sleep -Seconds $Wait }
 }
 
 # Sets the MFA requirement state
@@ -52,39 +51,44 @@ function Set-MfaState {
 #----------------------------------------------------------------------------------------------------#
 
 #region For specific user
-# Enable MFA for specific user
-function Enable-MfaForUser {
-  $UserPrincipalName = Read-Host "Enter user's UPN"
+# Set MFA state for specific user
+function Set-MfaStateForUser {
+  param(
+    [string]$UserPrincipalName,
+    [ValidateSet('Enabled', 'Disabled', 'Enforced')]
+    [string]$State
+  )
   $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
   if ($null -ne $User) {
-    WriteConsole @("User $($User.DisplayName) will have MFA enabled.", "green", 1, 0)
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Enabled
+    $StateVerb = if ($State -eq 'Enabled') { 'enabling' } elseif ($State -eq 'Disabled') { 'disabling' } elseif ($State -eq 'Enforced') { 'enforcing' }
+    WriteConsole -Text "User $($User.DisplayName) will have MFA $StateVerb." -ForegroundColor "green" -NewLine 1
+    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State $State
   }
-  else { WriteConsole("User not found.", "red", 1, 0) }
+  else { WriteConsole -Text "`nUser not found." -ForegroundColor "red" -NewLine 1 }
   Pause
 }
 
-# Disable MFA for specific user
-function Disable-MfaForUser {
-  $UserPrincipalName = Read-Host "Enter user's UPN"
-  $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
-  if ($null -ne $User) {
-    WriteConsole @("User $($User.DisplayName) will have MFA disabled.", "green", 1, 0)
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Disabled
-  }
-  else { WriteConsole("User not found.", "red", 1, 0) }
-  Pause
+# Request the user's email and receive the status of MFA by parameter
+function Set-MfaStateForUserPrompt {
+  param(
+    [ValidateSet('Enabled', 'Disabled', 'Enforced')]
+    [string]$State
+  )
+  $UserPrincipalName = Read-Host "`nEnter user's UPN"
+  Set-MfaStateForUser -UserPrincipalName $UserPrincipalName -State $State
 }
 
-# Enforce MFA for specific user
-function Enforce-MfaForUser {
-  $UserPrincipalName = Read-Host "Enter user's UPN"
+# Get MFA status for specific user
+function Get-MfaStatusForUser {
+  $UserPrincipalName = Read-Host "`nEnter user's UPN"
   $User = Get-MsolUser -UserPrincipalName $UserPrincipalName
   if ($null -ne $User) {
-    WriteConsole @("User $($User.DisplayName) will have MFA enforced.", "green", 1, 0)
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Enforced
+    $MfaStatus = Get-MsolUser -UserPrincipalName $UserPrincipalName | Select-Object -ExpandProperty StrongAuthenticationRequirements
+    if ($null -eq $MfaStatus) { WriteConsole -Text "`nMFA is disabled for user $($User.DisplayName)." -ForegroundColor "red" -NewLine 1 }
+    elseif ($MfaStatus.State -eq "Enabled") { WriteConsole -Text "`nMFA is enabled for user $($User.DisplayName)." -ForegroundColor "green" -NewLine 1 }
+    elseif ($MfaStatus.State -eq "Enforced") { WriteConsole -Text "`nMFA is enforced for user $($User.DisplayName)." -ForegroundColor "yellow" -NewLine 1 }
   }
-  else { WriteConsole("User not found.", "red", 1, 0) }
+  else { WriteConsole -Text "`nUser not found." -ForegroundColor "red" -NewLine 1 }
   Pause
 }
 #endregion
@@ -92,33 +96,29 @@ function Enforce-MfaForUser {
 #----------------------------------------------------------------------------------------------------#
 
 #region For All Users
-
-# Enable MFA for all users
-function Enable-MfaForAllUsers {
+# Set MFA state for all users
+function Set-MfaForAllUsers {
+  param (
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('Enabled', 'Disabled', 'Enforced')]
+    [string]$State
+  )
   $Users = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true }
   foreach ($User in $Users) {
-    WriteConsole @("Enabling MFA for $($User.DisplayName)", "green")
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Enabled
+    WriteConsole -Text "Setting MFA state to '$State' for $($User.DisplayName)" -ForegroundColor "green"
+    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State $State
   }
   Pause
 }
 
-# Disable MFA for all users
-function Disable-MfaForAllUsers {
+# Get MFA status for all users
+function Get-MfaStatusForAllUsers {
   $Users = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true }
   foreach ($User in $Users) {
-    WriteConsole @("Disabling MFA for $($User.DisplayName)", "green")
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Disabled
-  }
-  Pause
-}
-
-# Enforce MFA for all users
-function Enforce-MfaForAllUsers {
-  $Users = Get-MsolUser -All | Where-Object { $_.isLicensed -eq $true }
-  foreach ($User in $Users) {
-    WriteConsole @("Enforcing MFA for $($User.DisplayName)", "green")
-    Set-MfaState -ObjectId $User.ObjectId -UserPrincipalName $User.UserPrincipalName -State Enforced
+    $MfaStatus = Get-MsolUser -UserPrincipalName $User.UserPrincipalName | Select-Object -ExpandProperty StrongAuthenticationRequirements
+    if ($null -eq $MfaStatus) { WriteConsole -Text "MFA is disabled for user $($User.DisplayName)." -ForegroundColor "red" }
+    elseif ($MfaStatus.State -eq "Enabled") { WriteConsole -Text "MFA is enabled for user $($User.DisplayName)." -ForegroundColor "green" }
+    elseif ($MfaStatus.State -eq "Enforced") { WriteConsole -Text "MFA is enforced for user $($User.DisplayName)." -ForegroundColor "yellow" }
   }
   Pause
 }
@@ -127,32 +127,37 @@ function Enforce-MfaForAllUsers {
 #----------------------------------------------------------------------------------------------------#
 
 #region Main
-
 # Show menu of options
 do {
   Clear-Host
-  WriteConsole("--------------------[ MFA Management ]--------------------", "white", 1, 0)
-  WriteConsole("1- Enable MFA for all users.", "white")
-  WriteConsole("2- Disable MFA for all users.", "white")
-  WriteConsole("3- Enforce MFA for all users.", "white")
-  WriteConsole("4- Enable MFA for a specific user.", "white")
-  WriteConsole("5- Disable MFA for a specific user.", "white")
-  WriteConsole("6- Enforce MFA for a specific user.", "white")
-  WriteConsole("7- Exit", "white")
+  # muestra el titulo del script
+  WriteConsole -Text "--------------------[ MFA Management ]--------------------" -ForegroundColor "yellow" -NewLine 1
+  WriteConsole -Text "1- Enable MFA for all users."
+  WriteConsole -Text "2- Disable MFA for all users."
+  WriteConsole -Text "3- Enforce MFA for all users."
+  WriteConsole -Text "4- Get MFA status for all users."
+  WriteConsole -Text "5- Enable MFA for specific user."
+  WriteConsole -Text "6- Disable MFA for specific user."
+  WriteConsole -Text "7- Enforce MFA for specific user."
+  WriteConsole -Text "8- Get MFA status for specific user."
+  WriteConsole -Text "9- Exit."
+  WriteConsole -Text "----------------------------------------------------------" -ForegroundColor "yellow" -NewLine 1
   $option = Read-Host "Select an option"
 
   switch ($option) {
-    1 { Enable-MfaForAllUsers }
-    2 { Disable-MfaForAllUsers }
-    3 { Enforce-MfaForAllUsers }
-    4 { Enable-MfaForUser }
-    5 { Disable-MfaForUser }
-    6 { Enforce-MfaForUser }
-    7 { break }
-    default {
-      WriteConsole("Invalid option.", "red", 1, 0)
-      Pause
+    1 { Set-MfaForAllUsers -State "Enabled" }
+    2 { Set-MfaForAllUsers -State "Disabled" }
+    3 { Set-MfaForAllUsers -State "Enforced" }
+    4 { Get-MfaStatusForAllUsers }
+    5 { Set-MfaStateForUserPrompt -State "Enabled" }
+    6 { Set-MfaStateForUserPrompt -State "Disabled" }
+    7 { Set-MfaStateForUserPrompt -State "Enforced" }
+    8 { Get-MfaStatusForUser }
+    9 {
+      WriteConsole -Text "`nExiting..." -ForegroundColor "yellow" -NewLine 1 -Wait 2
+      break
     }
+    default { WriteConsole -Text "`nInvalid option." -ForegroundColor "red" -NewLine 1 -Wait 3 }
   }
-} while ($option -ne 7)
+} while ($option -ne 9)
 #endregion
